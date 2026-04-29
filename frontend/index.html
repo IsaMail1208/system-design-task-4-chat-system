@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Telegraph Chat (Demo)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    input, button, textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: #e5e7eb; }
+    button { cursor: pointer; background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.45); font-weight: 600; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    .muted { color: #9ca3af; font-size: 13px; }
+    .chat { height: 420px; overflow: auto; padding: 12px; background: rgba(0,0,0,0.25); border-radius: 12px; border: 1px solid rgba(255,255,255,0.10); }
+    .msgRow { display: flex; margin: 8px 0; }
+    .msg { max-width: 78%; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); }
+    .msg.me { background: rgba(99,102,241,0.22); border: 1px solid rgba(99,102,241,0.35); }
+    .msg.other { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); }
+    .msgRow.me { justify-content: flex-end; }
+    .msgRow.other { justify-content: flex-start; }
+    .meta { font-size: 12px; color: #9ca3af; margin-bottom: 2px; }
+    .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.25); color: #bbf7d0; font-size: 12px; }
+    .danger { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.22); color: #fecaca; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Telegraph Chat (Minimal Demo)</h1>
+      <div class="muted">Register or login, then join <b>General</b>, send messages, and see real-time updates via WebSocket.</div>
+    </div>
+
+    <div style="height: 12px"></div>
+
+    <div id="auth" class="card">
+      <div class="grid">
+        <div>
+          <div class="muted">Username</div>
+          <input id="username" placeholder="alice" />
+        </div>
+        <div>
+          <div class="muted">Password</div>
+          <input id="password" type="password" placeholder="password123" />
+        </div>
+      </div>
+      <div style="height: 10px"></div>
+      <div class="row">
+        <button id="btnRegister">Register</button>
+        <button id="btnLogin">Login</button>
+        <button id="btnLogout" disabled>Logout</button>
+      </div>
+      <div style="height: 8px"></div>
+      <div id="authStatus" class="muted"></div>
+    </div>
+
+    <div style="height: 12px"></div>
+
+    <div id="app" class="card" style="display:none;">
+      <div class="row" style="align-items:center;">
+        <div>
+          <div class="pill" id="presence">offline</div>
+          <span class="muted" style="margin-left:8px;">Room: <b>General</b></span>
+        </div>
+        <button id="btnRefresh" style="max-width: 180px;">Refresh history</button>
+      </div>
+
+      <div style="height: 10px"></div>
+      <div id="chat" class="chat"></div>
+
+      <div style="height: 10px"></div>
+      <div class="row">
+        <input id="message" placeholder="Type a message..." />
+        <button id="btnSend" style="max-width: 160px;">Send</button>
+      </div>
+      <div style="height: 8px"></div>
+      <div id="appStatus" class="muted"></div>
+    </div>
+  </div>
+
+<script>
+  const ROOM_ID = 'general';
+
+  const state = {
+    token: localStorage.getItem('token') || null,
+    userId: localStorage.getItem('userId') || null,
+    username: localStorage.getItem('username') || null,
+    ws: null,
+    connected: false,
+  };
+
+  const el = (id) => document.getElementById(id);
+
+  function setAuthStatus(msg, isError=false) {
+    el('authStatus').textContent = msg;
+    el('authStatus').className = 'muted' + (isError ? ' danger' : '');
+  }
+
+  function setAppStatus(msg) {
+    el('appStatus').textContent = msg;
+  }
+
+  function setPresence(status) {
+    const p = el('presence');
+    p.textContent = status;
+    p.className = 'pill' + (status === 'offline' ? ' danger' : '');
+  }
+
+  function showApp() {
+    el('app').style.display = '';
+    el('btnLogout').disabled = false;
+  }
+
+  function hideApp() {
+    el('app').style.display = 'none';
+    el('btnLogout').disabled = true;
+    setPresence('offline');
+  }
+
+  function renderMessage(m) {
+    const isMe = (
+      (m.senderId && state.userId && m.senderId === state.userId) ||
+      (m.sender_id && state.userId && m.sender_id === state.userId) ||
+      (m.senderName && state.username && m.senderName === state.username)
+    );
+
+    const row = document.createElement('div');
+    row.className = 'msgRow ' + (isMe ? 'me' : 'other');
+
+    const div = document.createElement('div');
+    div.className = 'msg ' + (isMe ? 'me' : 'other');
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${m.senderName || m.sender_id || 'unknown'} • ${new Date(m.createdAt || m.created_at).toLocaleString()}`;
+    const body = document.createElement('div');
+    body.textContent = m.content;
+    div.appendChild(meta);
+    div.appendChild(body);
+    row.appendChild(div);
+    el('chat').appendChild(row);
+    el('chat').scrollTop = el('chat').scrollHeight;
+  }
+
+  async function api(path, method='GET', body=null) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const txt = await res.text();
+    let json = null;
+    try { json = txt ? JSON.parse(txt) : null; } catch { json = { raw: txt }; }
+    if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+    return json;
+  }
+
+  async function register() {
+    const username = el('username').value.trim();
+    const password = el('password').value;
+    const out = await api('/api/auth/register', 'POST', { username, password });
+    setAuthStatus(`Registered: ${out.username}. Logging in...`);
+    // Auto-login after successful registration
+    await login();
+  }
+
+  async function login() {
+    const username = el('username').value.trim();
+    const password = el('password').value;
+    const out = await api('/api/auth/login', 'POST', { username, password });
+    state.token = out.token;
+    state.userId = out.userId;
+    state.username = out.username;
+    localStorage.setItem('token', state.token);
+    localStorage.setItem('userId', state.userId);
+    localStorage.setItem('username', state.username);
+    setAuthStatus(`Logged in as ${state.username}`);
+    showApp();
+    await connectWs();
+    await refreshHistory();
+  }
+
+  function logout() {
+    state.token = null;
+    state.userId = null;
+    state.username = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('username');
+    if (state.ws) state.ws.close();
+    state.ws = null;
+    el('chat').innerHTML = '';
+    setAuthStatus('Logged out');
+    hideApp();
+  }
+
+  async function refreshHistory() {
+    el('chat').innerHTML = '';
+    const out = await api(`/api/rooms/${ROOM_ID}/messages?limit=50`);
+    for (const m of out.items) renderMessage(m);
+    setAppStatus('History loaded');
+  }
+
+  async function sendMessage() {
+    const content = el('message').value.trim();
+    if (!content) return;
+    el('message').value = '';
+    const idempotencyKey = `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    await api('/api/messages', 'POST', { roomId: ROOM_ID, idempotencyKey, content, attachments: [] });
+    setAppStatus('Sent');
+  }
+
+  async function connectWs() {
+    if (!state.token) return;
+
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+    const ws = new WebSocket(wsUrl);
+    state.ws = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'auth', token: state.token }));
+      ws.send(JSON.stringify({ type: 'join', roomId: ROOM_ID }));
+    };
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === 'ready') {
+        state.connected = true;
+        setPresence('online');
+        setAppStatus('WebSocket connected');
+        return;
+      }
+      if (msg.type === 'message') {
+        renderMessage(msg);
+        return;
+      }
+      if (msg.type === 'presence') {
+        // minimal demo: show presence events in status line
+        setAppStatus(`Presence: ${msg.username || msg.userId} is ${msg.status}`);
+        return;
+      }
+      if (msg.type === 'error') {
+        setAppStatus(`WS error: ${msg.message}`);
+        return;
+      }
+    };
+
+    ws.onclose = () => {
+      state.connected = false;
+      setPresence('offline');
+      setAppStatus('WebSocket disconnected');
+    };
+  }
+
+  el('btnRegister').onclick = () => register().catch(e => setAuthStatus(e.message, true));
+  el('btnLogin').onclick = () => login().catch(e => setAuthStatus(e.message, true));
+  el('btnLogout').onclick = () => logout();
+  el('btnSend').onclick = () => sendMessage().catch(e => setAppStatus(e.message));
+  el('btnRefresh').onclick = () => refreshHistory().catch(e => setAppStatus(e.message));
+  el('message').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage().catch(err => setAppStatus(err.message));
+  });
+
+  // auto-login if token exists
+  if (state.token) {
+    setAuthStatus(`Token found. Click Login to refresh token, or logout.`, false);
+    showApp();
+    connectWs().catch(()=>{});
+    refreshHistory().catch(()=>{});
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      auth:
+        condition: service_healthy
+      message:
+        condition: service_healthy
+      connection:
+        condition: service_healthy
+
+  auth:
+    build: ./services/auth
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgres://chat:chat@postgres:5432/chat
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  message:
+    build: ./services/message
+    environment:
+      - PORT=3002
+      - DATABASE_URL=postgres://chat:chat@postgres:5432/chat
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - EXCHANGE_NAME=chat.messages
+    depends_on:
+      - postgres
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  connection:
+    build: ./services/connection
+    environment:
+      - PORT=3003
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - EXCHANGE_NAME=chat.messages
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - rabbitmq
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=chat
+      - POSTGRES_USER=chat
+      - POSTGRES_PASSWORD=chat
+    volumes:
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+
+  redis:
+    image: redis:7-alpine
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "15672:15672"

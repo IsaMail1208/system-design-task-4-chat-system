@@ -1,0 +1,13 @@
+{
+  "name": "chat-connection",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "jsonwebtoken": "^9.0.2",
+    "redis": "^4.6.13",
+    "ws": "^8.18.0"
+  }
+}

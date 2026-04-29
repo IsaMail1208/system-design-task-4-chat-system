@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860">
+  <defs>
+    <style>
+      .title { font: 700 22px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .sub { font: 400 12.5px Segoe UI, Arial, sans-serif; fill: #374151; }
+      .label { font: 600 14px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .text  { font: 400 13px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .small { font: 400 12px Segoe UI, Arial, sans-serif; fill: #374151; }
+
+      .box { fill: #ffffff; stroke: #111827; stroke-width: 1.3; rx: 12; }
+      .edge { fill: #f9fafb; stroke: #111827; stroke-width: 1.2; rx: 12; }
+      .svc { fill: #eef2ff; stroke: #111827; stroke-width: 1.2; rx: 12; }
+      .realtime { fill: #ecfeff; stroke: #111827; stroke-width: 1.2; rx: 12; }
+      .cache { fill: #f0fdf4; stroke: #111827; stroke-width: 1.2; rx: 12; }
+      .db { fill: #fefce8; stroke: #111827; stroke-width: 1.2; rx: 12; }
+      .queue { fill: #fff7ed; stroke: #111827; stroke-width: 1.2; rx: 12; }
+
+      .line { stroke: #111827; stroke-width: 1.6; fill: none; }
+      .dash { stroke-dasharray: 6 5; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#111827" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="860" fill="#ffffff"/>
+  <text x="40" y="48" class="title">Chat System — High-level Architecture (nginx + services)</text>
+  <text x="40" y="74" class="sub">Frontend served by nginx. nginx proxies /api and /ws to services. Message service persists + publishes events. Connection service consumes fan-out to deliver WS.</text>
+
+  <!-- Clients -->
+  <rect x="40" y="120" width="260" height="110" class="box"/>
+  <text x="60" y="150" class="label">Clients</text>
+  <text x="60" y="175" class="text">Mobile / Web</text>
+  <text x="60" y="197" class="text">WebSocket + REST</text>
+
+  <!-- nginx -->
+  <rect x="340" y="120" width="280" height="110" class="edge"/>
+  <text x="360" y="150" class="label">nginx</text>
+  <text x="360" y="175" class="text">Serve frontend</text>
+  <text x="360" y="197" class="text">Proxy /api and /ws</text>
+
+  <!-- Frontend -->
+  <rect x="340" y="250" width="280" height="95" class="box"/>
+  <text x="360" y="282" class="label">Frontend</text>
+  <text x="360" y="306" class="text">Single-page UI</text>
+
+  <!-- Auth service -->
+  <rect x="690" y="90" width="250" height="120" class="svc"/>
+  <text x="710" y="122" class="label">Auth Service</text>
+  <text x="710" y="146" class="text">Register / Login</text>
+  <text x="710" y="168" class="text">JWT issuance</text>
+
+  <!-- Connection service -->
+  <rect x="690" y="240" width="250" height="150" class="realtime"/>
+  <text x="710" y="272" class="label">Connection Service</text>
+  <text x="710" y="296" class="text">WebSocket termination</text>
+  <text x="710" y="318" class="text">Join rooms, fan-out</text>
+  <text x="710" y="340" class="text">Presence/typing/read</text>
+
+  <!-- Message service -->
+  <rect x="990" y="240" width="250" height="150" class="svc"/>
+  <text x="1010" y="272" class="label">Message Service</text>
+  <text x="1010" y="296" class="text">Rooms, send message</text>
+  <text x="1010" y="318" class="text">History (pagination)</text>
+  <text x="1010" y="340" class="text">Uploads, search</text>
+
+  <!-- Redis -->
+  <rect x="690" y="430" width="250" height="120" class="cache"/>
+  <text x="710" y="462" class="label">Redis</text>
+  <text x="710" y="486" class="text">Presence + typing TTL</text>
+  <text x="710" y="508" class="text">Optional sessions/limits</text>
+
+  <!-- RabbitMQ -->
+  <rect x="990" y="430" width="250" height="120" class="queue"/>
+  <text x="1010" y="462" class="label">RabbitMQ / Kafka</text>
+  <text x="1010" y="486" class="text">Durable exchange/topic</text>
+  <text x="1010" y="508" class="text">room.&lt;room_id&gt; routing</text>
+
+  <!-- Postgres -->
+  <rect x="1030" y="600" width="420" height="120" class="db"/>
+  <text x="1050" y="632" class="label">Postgres</text>
+  <text x="1050" y="656" class="text">Users, rooms, memberships</text>
+  <text x="1050" y="678" class="text">Messages + indexes</text>
+
+  <!-- MinIO -->
+  <rect x="690" y="600" width="320" height="120" class="db"/>
+  <text x="710" y="632" class="label">MinIO / S3</text>
+  <text x="710" y="656" class="text">Media objects</text>
+  <text x="710" y="678" class="text">Pre-signed URLs</text>
+
+  <!-- Lines -->
+  <path d="M300 175 L340 175" class="line" marker-end="url(#arrow)"/>
+  <path d="M480 230 L480 250" class="line" marker-end="url(#arrow)"/>
+
+  <!-- nginx routes -->
+  <path d="M620 150 L690 140" class="line" marker-end="url(#arrow)"/>
+  <text x="630" y="134" class="small">/api/auth</text>
+
+  <path d="M620 175 L690 300" class="line" marker-end="url(#arrow)"/>
+  <text x="630" y="212" class="small">/ws</text>
+
+  <path d="M620 175 L990 300" class="line" marker-end="url(#arrow)"/>
+  <text x="740" y="212" class="small">/api</text>
+
+  <!-- service to stores -->
+  <path d="M815 390 L815 430" class="line" marker-end="url(#arrow)"/>
+  <path d="M1115 390 L1115 430" class="line" marker-end="url(#arrow)"/>
+
+  <path d="M1115 550 L1240 600" class="line" marker-end="url(#arrow)"/>
+  <path d="M1090 550 L880 600" class="line" marker-end="url(#arrow)"/>
+
+  <!-- publish/consume fan-out -->
+  <path d="M990 320 L940 320" class="line dash" marker-end="url(#arrow)"/>
+  <text x="850" y="308" class="small">publish delivery events</text>
+
+  <path d="M1115 430 L940 380" class="line dash" marker-end="url(#arrow)"/>
+  <text x="980" y="396" class="small">consume + fan-out</text>
+
+</svg>
