@@ -77,30 +77,10 @@ This matches the “many files” example you showed (dockerized demo architectu
 
 ## 2. Architecture Diagram
 
-Diagram (image “photo”):
+Diagram:
 
 ![Chat Architecture](docs/chat-architecture.svg)
 
-Mermaid diagram (renders on GitHub):
-
-```mermaid
-flowchart TD
-  C[Clients\nWeb/Mobile] --> N[nginx\nStatic frontend + reverse proxy]
-
-  N --> A[Auth Service\nJWT]
-  N --> MS[Message Service\nRooms + History + Upload metadata]
-  N --> CS[Connection Service\nWebSocket (/ws)]
-
-  CS <--> R[(Redis\nPresence/Typing TTL)]
-
-  MS --> DB[(Postgres\nUsers/Rooms/Messages)]
-  MS --> OBJ[(MinIO/S3\nMedia objects)]
-
-  MS --> MQ[RabbitMQ/Kafka\nRoom delivery events]
-  MQ -. fan-out .-> CS
-
-  CS --> C
-```
 
 ## 3. API Design (REST)
 
